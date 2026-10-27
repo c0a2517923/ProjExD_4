@@ -188,7 +188,43 @@ class Beam(pg.sprite.Sprite):
         if check_bound(self.rect) != (True, True):
             self.kill()
 
+#------------シールドクラス----------------------------------
+class Shield(pg.sprite.Sprite):
+    """
+    シールドに関するクラス
+    """
+    def __init__(self, bird:Bird , life:int):
+        """
+        life = 発動時間
+        angle = 角度
+        """
+        super().__init__()
+        self.width = 20
+        self.hight = bird.rect.height*2
+        self.life = life
+        vx,vy = bird.dire
+        self.angle = math.degrees(math.atan2(-vy,vx))
 
+
+        self.image = pg.Surface((self.width , self.hight))
+        self.image = pg.transform.rotate(self.image,self.angle)
+
+        pg.draw.rect(self.image, (0,0,255),( 0 , 0 , self.width, self.hight))
+        self.rect = self.image.get_rect()
+        self.rect.centerx = bird.rect.centerx + bird.rect.width
+        self.rect.centery = bird.rect.centery
+
+
+        
+
+    def update(self):
+        """
+        発動時間判定
+        """
+        self.life -= 1
+        if self.life < 0:
+            self.kill()
+#--------------------------------------------------------
 class Explosion(pg.sprite.Sprite):
     """
     爆発に関するクラス
@@ -372,6 +408,7 @@ def main():
     emys = pg.sprite.Group()
     gravities = pg.sprite.Group()
     emp = pg.sprite.Group()
+    shields = pg.sprite.Group()
 
     tmr = 0
     clock = pg.time.Clock()
@@ -403,6 +440,13 @@ def main():
                     bird.hyper_life = 500
                     # スコアを100消費
                     score.value -= 100
+
+#----------------防御壁の展開--------------------------
+            if event.type == pg.KEYDOWN and event.key == pg.K_s:
+                if score.value > 50 and all(val is None for val in shields):
+                    shields.add(Shield(bird,400))
+                    score.value -= 50
+#-----------------------------------------------------
 
         screen.blit(bg_img, [0, 0])
             
@@ -488,6 +532,9 @@ def main():
                 bird.change_img(6, screen)  # こうかとん喜びエフェクト
 
         gravities.update(screen)
+        for bomb in pg.sprite.groupcollide(shields, bombs, True, True).keys():  #シールドと衝突した爆弾リスト
+            exps.add(Explosion(bomb, 50))  # 爆発エフェクト
+
         bird.update(key_lst, screen)
         beams.update()
         beams.draw(screen)
@@ -500,6 +547,12 @@ def main():
         emp.update()
         score.update(screen)
         life.update(screen)  #　残機数分のハートを画面右下に表示
+
+        #---シールド表示---------
+        shields.update()
+        shields.draw(screen)
+        #--------------------
+
         pg.display.update()
         tmr += 1
         clock.tick(50)
