@@ -176,7 +176,6 @@ class Shield(pg.sprite.Sprite):
         life = 発動時間
         angle = 角度
         """
-
         super().__init__()
         self.width = 20
         self.hight = bird.rect.height*2
