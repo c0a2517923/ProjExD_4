@@ -126,6 +126,7 @@ class Bomb(pg.sprite.Sprite):
         self.rect.centerx = emy.rect.centerx
         self.rect.centery = emy.rect.centery+emy.rect.height//2
         self.speed = 6
+        self.state = "active"
 
     def update(self):
         """
@@ -253,6 +254,41 @@ class Life:  # 追加機能１
         for i in range(self.num):  # 残基数の分だけ繰り返す
             # ハートを右下から左方向に50ピクセル間隔で描画
             screen.blit(self.image, (WIDTH-70-50*i, HEIGHT-70))
+class EMP(pg.sprite.Sprite):
+    def __init__(self, emy:Enemy, bomb:Bomb, screen:pg.Surface):
+        """
+        爆弾円Surfaceを生成する
+        引数1 emy：爆弾を投下する敵機
+        引数2 bomb：爆弾
+        引数3 screen：画面Surface
+        """
+        super().__init__()
+        self.emy = emy
+        self.bomb = bomb
+        self.screen = screen
+        self.start_time = pg.time.get_ticks()
+        self.is_active = True
+        self.flash_surface = pg.Surface((WIDTH, HEIGHT))
+        pg.draw.rect(self.flash_surface,(255, 255, 0), (0, 0, WIDTH, HEIGHT))
+        self.flash_surface.set_alpha(128)
+        self.screen.blit(self.flash_surface, (0, 0))
+        pg.display.update()
+        time.sleep(0.05)
+
+    def active_emp(self):
+        for enemy in self.emy:
+            enemy.interval = math.inf
+            enemy.image = pg.transform.laplacian(enemy.image)
+
+        for bomb in self.bomb:
+            bomb.speed /= 2
+            bomb.state = "inactive"
+
+
+    def update(self):
+        """0.05秒が経過したらエフェクトを終了する"""
+        if pg.time.get_ticks() - self.start_time > self.display_duration:
+            self.is_active = False    
 
 
 class Score:
@@ -314,6 +350,7 @@ def main():
     exps = pg.sprite.Group()
     emys = pg.sprite.Group()
     gravities = pg.sprite.Group()
+    emp = pg.sprite.Group()
 
     tmr = 0
     clock = pg.time.Clock()
@@ -322,6 +359,13 @@ def main():
         for event in pg.event.get():
             if event.type == pg.QUIT:
                 return 0
+            if event.type == pg.KEYDOWN and event.key  == pg.K_e:
+                if score.value >= 20:
+                    score.value -= 20
+                    emp_effect = EMP(emys, bombs, screen)
+                    emp_effect.active_emp()
+                    print(f"EMP発動")
+                
             if event.type == pg.KEYDOWN and event.key == pg.K_SPACE:
                 beams.add(Beam(bird))
             if event.type == pg.KEYDOWN and event.key == pg.K_RETURN:
@@ -329,6 +373,7 @@ def main():
                     gravities.add(Gravity(400))  # 追加機能2
                     score.value -= 200
         screen.blit(bg_img, [0, 0])
+            
 
         if tmr%200 == 0:  # 200フレームに1回，敵機を出現させる
             emys.add(Enemy())
@@ -353,20 +398,21 @@ def main():
             score.value += 10  # 10点アップ
             bird.change_img(6, screen)  # こうかとん喜びエフェクト
 
-        for emy in pg.sprite.groupcollide(bombs, gravities, True, False).keys():  # 重力場と衝突した敵機リスト
+        for bomb in pg.sprite.spritecollide(bird, bombs, True):  # こうかとんと衝突した爆弾リスト
+            if bomb.state == "active":
+                life.num -= 1  #　爆弾に当たったら残機数を1減らす
+                if life.num == 0:
+                    bird.change_img(8, screen)  # こうかとん悲しみエフェクト
+                    score.update(screen)
+                    pg.display.update()
+                    time.sleep(2)
+                    return
+            
+
+        for emy in pg.sprite.groupcollide(bombs, gravities, True, False).keys():  # 重力場と衝突した爆弾リスト
                 exps.add(Explosion(emy, 100))  # 爆発エフェクト
                 score.value += 1  # 10点アップ
                 bird.change_img(6, screen)  # こうかとん喜びエフェクト
-
-        for bomb in pg.sprite.spritecollide(bird, bombs, True):  # こうかとんと衝突した爆弾リスト
-            life.num -= 1  #　爆弾に当たったら残機数を1減らす
-
-            if life.num == 0:
-                bird.change_img(8, screen)  # こうかとん悲しみエフェクト
-                score.update(screen)
-                pg.display.update()
-                time.sleep(2)
-                return
 
         gravities.update(screen)
         bird.update(key_lst, screen)
@@ -378,13 +424,14 @@ def main():
         bombs.draw(screen)
         exps.update()
         exps.draw(screen)
+        emp.update()
         score.update(screen)
         life.update(screen)  #　残機数分のハートを画面右下に表示
         pg.display.update()
         tmr += 1
         clock.tick(50)
 
-
+    
 if __name__ == "__main__":
     pg.init()
     main()
